@@ -1,5 +1,6 @@
 #pragma once
 
-namespace stl { }
+namespace stl {
+    inline constexpr const char* version = "0.0.0";
+}
 
-inline constexpr const char* version = "0.0.0";
