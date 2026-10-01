@@ -1,0 +1,38 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "common",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "$env{HOME}/builds/stl-remake/${presetName}"
+        },
+        {
+            "name": "debug-asan",
+            "displayName": "Debug + ASan/UBSan",
+            "inherits": "common",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "STL_SANITIZE": "address,undefined"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "debug-asan",
+            "displayName": "Debug + ASan/UBSan",
+            "configurePreset": "debug-asan",
+            "configuration": "Debug"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "debug-asan",
+            "displayName": "Test w/ Asan/UBSan",
+            "configurePreset": "debug-asan",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

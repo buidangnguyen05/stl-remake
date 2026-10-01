@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20...4.2.3)
+cmake_minimum_required(VERSION 4.2)
 
 project(stl-remake CXX)
 
@@ -16,5 +16,13 @@ function(set_warning_flags TARGET)
     endif()
     target_compile_options(${TARGET} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endfunction()
+
+set(CACHE{STL_SANITIZE} TYPE STRING HELP "Set sanitization flags" VALUE "")
+if(STL_SANITIZE)
+    add_compile_options(-fsanitize=${STL_SANITIZE} -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=${STL_SANITIZE})
+endif()
+
+add_compile_definitions($<$<CONFIG:Debug>:_GLIBCXX_ASSERTIONS>)
 
 add_subdirectory(tests)
