@@ -15,6 +15,15 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "STL_SANITIZE": "address,undefined"
             }
+        },
+        {
+            "name": "release",
+            "displayName": "Release",
+            "inherits": "common",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS_RELEASE": "-O3 -g -DNDEBUG -fno-omit-frame-pointer"
+            }
         }
     ],
     "buildPresets": [
@@ -23,6 +32,12 @@
             "displayName": "Debug + ASan/UBSan",
             "configurePreset": "debug-asan",
             "configuration": "Debug"
+        },
+        {
+            "name": "release",
+            "displayName": "Release",
+            "configurePreset": "release",
+            "configuration": "Release"
         }
     ],
     "testPresets": [
