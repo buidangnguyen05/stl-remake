@@ -10,6 +10,14 @@ add_library(stl::stl ALIAS stl)
 target_include_directories(stl INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(stl INTERFACE cxx_std_23)
 
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    SYSTEM
+    URL https://github.com/google/googletest/releases/download/v1.18.0/googletest-1.18.0.tar.gz
+)
+FetchContent_MakeAvailable(googletest)
+
 function(set_warning_flags TARGET)
     if(NOT TARGET ${TARGET})
         message(FATAL_ERROR "Warning flags cannot be set on non-target ${TARGET}")
@@ -25,4 +33,5 @@ endif()
 
 add_compile_definitions($<$<CONFIG:Debug>:_GLIBCXX_ASSERTIONS>)
 
+enable_testing()
 add_subdirectory(tests)
