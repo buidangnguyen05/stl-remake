@@ -5,7 +5,7 @@ set_warning_flags(skeleton)
 include(GoogleTest)
 
 add_executable(gtest_smoke gtest_smoke.cpp)
-target_link_libraries(gtest_smoke PRIVATE gtest_main)
+target_link_libraries(gtest_smoke PRIVATE GTest::gtest_main)
 set_warning_flags(gtest_smoke)
 
 gtest_discover_tests(gtest_smoke)

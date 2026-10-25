@@ -30,14 +30,12 @@
         {
             "name": "debug-asan",
             "displayName": "Debug + ASan/UBSan",
-            "configurePreset": "debug-asan",
-            "configuration": "Debug"
+            "configurePreset": "debug-asan"
         },
         {
             "name": "release",
             "displayName": "Release",
-            "configurePreset": "release",
-            "configuration": "Release"
+            "configurePreset": "release"
         }
     ],
     "testPresets": [
@@ -47,6 +45,10 @@
             "configurePreset": "debug-asan",
             "output": {
                 "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": true
             }
         }
     ]

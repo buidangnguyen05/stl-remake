@@ -4,19 +4,28 @@ project(stl-remake CXX)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(STL_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
+
 add_library(stl INTERFACE)
 add_library(stl::stl ALIAS stl)
 
 target_include_directories(stl INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(stl INTERFACE cxx_std_23)
 
-include(FetchContent)
-FetchContent_Declare(
-    googletest
-    SYSTEM
-    URL https://github.com/google/googletest/releases/download/v1.18.0/googletest-1.18.0.tar.gz
-)
-FetchContent_MakeAvailable(googletest)
+### gtest
+if(STL_BUILD_TESTS)
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        SYSTEM
+        URL https://github.com/google/googletest/releases/download/v1.18.0/googletest-1.18.0.tar.gz
+        URL_HASH SHA256=6e3191c1455468b3fc35a417fb565c1c5071aee1b7e7f85e30cf48a98d37d8b5
+    )
+    FetchContent_MakeAvailable(googletest)
+endif()
+###
 
 function(set_warning_flags TARGET)
     if(NOT TARGET ${TARGET})
@@ -33,5 +42,7 @@ endif()
 
 add_compile_definitions($<$<CONFIG:Debug>:_GLIBCXX_ASSERTIONS>)
 
-enable_testing()
-add_subdirectory(tests)
+if(STL_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
