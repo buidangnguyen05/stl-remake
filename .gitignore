@@ -1,5 +1,7 @@
 build/
 .obsidian/
+.junie/
+.idea/
 PLAN.MD
 HINTS.md
 CHECKS.md
