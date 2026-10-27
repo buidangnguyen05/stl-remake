@@ -1,55 +1,55 @@
 {
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "common",
-            "hidden": true,
-            "generator": "Ninja",
-            "binaryDir": "$env{HOME}/builds/stl-remake/${presetName}"
-        },
-        {
-            "name": "debug-asan",
-            "displayName": "Debug + ASan/UBSan",
-            "inherits": "common",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "STL_SANITIZE": "address,undefined"
-            }
-        },
-        {
-            "name": "release",
-            "displayName": "Release",
-            "inherits": "common",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_CXX_FLAGS_RELEASE": "-O3 -g -DNDEBUG -fno-omit-frame-pointer"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "debug-asan",
-            "displayName": "Debug + ASan/UBSan",
-            "configurePreset": "debug-asan"
-        },
-        {
-            "name": "release",
-            "displayName": "Release",
-            "configurePreset": "release"
-        }
-    ],
-    "testPresets": [
-        {
-            "name": "debug-asan",
-            "displayName": "Test w/ Asan/UBSan",
-            "configurePreset": "debug-asan",
-            "output": {
-                "outputOnFailure": true
-            },
-            "execution": {
-                "noTestsAction": "error",
-                "stopOnFailure": true
-            }
-        }
-    ]
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "common",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "$env{HOME}/builds/stl-remake/${presetName}"
+    },
+    {
+      "name": "debug-asan",
+      "displayName": "Debug + ASan/UBSan",
+      "inherits": "common",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STL_SANITIZE": "address,undefined"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "inherits": "common",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -g -DNDEBUG -fno-omit-frame-pointer"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug-asan",
+      "displayName": "Debug + ASan/UBSan",
+      "configurePreset": "debug-asan"
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "configurePreset": "release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "debug-asan",
+      "displayName": "Test w/ Asan/UBSan",
+      "configurePreset": "debug-asan",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": true
+      }
+    }
+  ]
 }
