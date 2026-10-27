@@ -19,11 +19,11 @@ target_link_libraries(gtest_smoke PRIVATE
 set_warning_flags(gtest_smoke)
 gtest_discover_tests(gtest_smoke)
 
-add_executable(test_support test_support.cpp)
-target_link_libraries(test_support PRIVATE
+add_executable(test_tracked test_tracked.cpp)
+target_link_libraries(test_tracked PRIVATE
         stl::stl
         stl_test_support
         GTest::gtest_main
 )
-set_warning_flags(test_support)
-gtest_discover_tests(test_support)
+set_warning_flags(test_tracked)
+gtest_discover_tests(test_tracked)

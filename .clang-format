@@ -7,3 +7,5 @@ BreakBeforeBraces: Attach
 FixNamespaceComments: true
 SortIncludes: CaseSensitive
 IncludeBlocks: Regroup
+AllowShortFunctionsOnASingleLine: Inline
+InsertNewlineAtEOF: true

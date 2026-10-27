@@ -4,14 +4,13 @@
 #include <gtest/gtest.h>
 #include <optional>
 #include <support/tracked.hpp>
+#include <support/tracked_fixture.hpp>
 #include <utility>
 
 using stl::test::Tracked;
 using Snapshot = Tracked::Snapshot;
 
-// Each block performs exactly one special member call between two snapshots,
-// and checks that only its own counter moved by one.
-TEST(TrackedTest, EachSpecialMemberBumpsOnlyItsCounter) {
+TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
   {
     Tracked::reset();
     const Snapshot before = Tracked::snapshot();
@@ -83,8 +82,7 @@ TEST(TrackedTest, EachSpecialMemberBumpsOnlyItsCounter) {
   }
 }
 
-TEST(TrackedTest, DefaultCopyMoveSequence) {
-  Tracked::reset();
+TEST_F(TrackedFixture, DefaultCopyMoveSequence) {
   {
     Tracked a;
     Tracked b = a;
@@ -94,11 +92,9 @@ TEST(TrackedTest, DefaultCopyMoveSequence) {
   }
   EXPECT_EQ(Tracked::snapshot(),
             (Snapshot{.default_ctor = 1, .copy_ctor = 1, .move_ctor = 1, .destructor = 3}));
-  EXPECT_EQ(Tracked::live(), 0);
 }
 
-TEST(TrackedTest, ResetAndSnapshotComparison) {
-  Tracked::reset();
+TEST_F(TrackedFixture, ResetAndSnapshotComparison) {
   {
     Tracked a(1);
     const Snapshot s1 = Tracked::snapshot();
@@ -116,5 +112,20 @@ TEST(TrackedTest, ResetAndSnapshotComparison) {
   const Snapshot r2 = Tracked::snapshot();
   EXPECT_EQ(r1, r2);
   EXPECT_EQ(r1, Snapshot{});
-  EXPECT_EQ(Tracked::live(), 0);
+}
+
+TEST_F(TrackedFixture, Normal) {
+  Tracked a(1);
+  Tracked b(2);
+  EXPECT_EQ(Tracked::live(), 2);
+  {
+    Tracked c = a;
+    EXPECT_EQ(Tracked::live(), 3);
+  }
+  EXPECT_EQ(Tracked::live(), 2);
+}
+
+TEST_F(TrackedFixture, DISABLED_DeliberateLeak) {
+  [[maybe_unused]] Tracked *leak = new Tracked(42);
+  EXPECT_EQ(Tracked::live(), 1);
 }
