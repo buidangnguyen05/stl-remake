@@ -10,9 +10,9 @@
 
 class TrackedFixture : public ::testing::Test {
 protected:
-  void SetUp() override { stl::test::Tracked::reset(); }
+  TrackedFixture() { stl::test::Tracked::reset(); }
 
-  void TearDown() override {
+  ~TrackedFixture() override {
     EXPECT_EQ(stl::test::Tracked::live(), 0) << "Details: " << stl::test::Tracked::snapshot();
   }
 };

@@ -6,13 +6,13 @@
 #include <support/tracked.hpp>
 #include <support/tracked_fixture.hpp>
 #include <utility>
+#include <vector>
 
 using stl::test::Tracked;
 using Snapshot = Tracked::Snapshot;
 
 TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
   {
-    Tracked::reset();
     const Snapshot before = Tracked::snapshot();
     Tracked t;
     Snapshot expected = before;
@@ -21,7 +21,6 @@ TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
     EXPECT_EQ(t.value(), 0);
   }
   {
-    Tracked::reset();
     const Snapshot before = Tracked::snapshot();
     Tracked t(7);
     Snapshot expected = before;
@@ -30,7 +29,6 @@ TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
     EXPECT_EQ(t.value(), 7);
   }
   {
-    Tracked::reset();
     Tracked a(1);
     const Snapshot before = Tracked::snapshot();
     Tracked b = a;
@@ -40,7 +38,6 @@ TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
     EXPECT_EQ(b.value(), 1);
   }
   {
-    Tracked::reset();
     Tracked a(1);
     const Snapshot before = Tracked::snapshot();
     Tracked b = std::move(a);
@@ -50,7 +47,6 @@ TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
     EXPECT_EQ(b.value(), 1);
   }
   {
-    Tracked::reset();
     Tracked a(1);
     Tracked b(2);
     const Snapshot before = Tracked::snapshot();
@@ -61,7 +57,6 @@ TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
     EXPECT_EQ(b.value(), 1);
   }
   {
-    Tracked::reset();
     Tracked a(1);
     Tracked b(2);
     const Snapshot before = Tracked::snapshot();
@@ -72,7 +67,6 @@ TEST_F(TrackedFixture, EachSpecialMemberBumpsOnlyItsCounter) {
     EXPECT_EQ(b.value(), 1);
   }
   {
-    Tracked::reset();
     std::optional<Tracked> t(std::in_place, 1);
     const Snapshot before = Tracked::snapshot();
     t.reset(); // runs exactly the destructor
@@ -122,6 +116,17 @@ TEST_F(TrackedFixture, Normal) {
     Tracked c = a;
     EXPECT_EQ(Tracked::live(), 3);
   }
+  EXPECT_EQ(Tracked::live(), 2);
+}
+
+class TrackedMemberFixture : public TrackedFixture {
+protected:
+  std::vector<Tracked> m_items;
+};
+
+TEST_F(TrackedMemberFixture, MembersOfDerivedFixtureAreNotLeaks) {
+  m_items.emplace_back(1);
+  m_items.emplace_back(2);
   EXPECT_EQ(Tracked::live(), 2);
 }
 
