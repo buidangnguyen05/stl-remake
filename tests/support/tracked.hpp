@@ -2,10 +2,38 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <cstdlib>
+#include <functional>
+#include <gtest/gtest.h>
+#include <new>
 #include <ostream>
 #include <type_traits>
+#include <unordered_set>
 
 namespace stl::test {
+
+namespace detail {
+
+// Allocates with malloc, so the registry stays invisible to tests that count operator new calls.
+template <class T> struct MallocAllocator {
+  using value_type = T;
+
+  MallocAllocator() = default;
+  template <class U> explicit MallocAllocator(const MallocAllocator<U> &) noexcept {}
+
+  [[nodiscard]] T *allocate(std::size_t n) {
+    if (void *p = std::malloc(n * sizeof(T))) {
+      return static_cast<T *>(p);
+    }
+    throw std::bad_alloc();
+  }
+
+  void deallocate(T *p, std::size_t) noexcept { std::free(p); }
+
+  friend bool operator==(const MallocAllocator &, const MallocAllocator &) = default;
+};
+
+} // namespace detail
 
 class Tracked {
 public:
@@ -29,29 +57,71 @@ public:
     }
   };
 
-  Tracked() { ++s_default_ctor; }
-  explicit Tracked(const int &value) : m_x(value) { ++s_value_ctor; }
+  // value left behind in an object that was moved from
+  static constexpr int moved_from = -1;
 
-  Tracked(const Tracked &other) : m_x(other.m_x) { ++s_copy_ctor; }
-  Tracked(Tracked &&other) noexcept : m_x(other.m_x) { ++s_move_ctor; }
+  Tracked() {
+    born();
+    ++s_default_ctor;
+  }
+  explicit Tracked(const int &value) : m_x(value) {
+    born();
+    ++s_value_ctor;
+  }
+
+  Tracked(const Tracked &other) : m_x(other.m_x) {
+    other.check_alive("copied from");
+    born();
+    ++s_copy_ctor;
+  }
+  Tracked(Tracked &&other) noexcept : m_x(other.m_x) {
+    other.check_alive("moved from");
+    born();
+    other.m_x = moved_from;
+    ++s_move_ctor;
+  }
 
   Tracked &operator=(const Tracked &other) {
+    check_alive("copy-assigned to");
+    other.check_alive("copied from");
     m_x = other.m_x;
     ++s_copy_assign;
     return *this;
   }
 
   Tracked &operator=(Tracked &&other) noexcept {
+    check_alive("move-assigned to");
+    other.check_alive("moved from");
     m_x = other.m_x;
+    other.m_x = moved_from;
     ++s_move_assign;
     return *this;
   }
 
-  ~Tracked() { ++s_destructor; }
+  ~Tracked() {
+    // a second destructor call finds nothing to erase
+    if (registry().erase(this) == 0) {
+      ADD_FAILURE() << "Tracked at " << this << " destroyed twice, or never constructed";
+      return;
+    }
+    ++s_destructor;
+  }
 
-  auto operator<=>(const Tracked &) const = default;
+  friend bool operator==(const Tracked &lhs, const Tracked &rhs) {
+    lhs.check_alive("compared");
+    rhs.check_alive("compared");
+    return lhs.m_x == rhs.m_x;
+  }
+  friend std::strong_ordering operator<=>(const Tracked &lhs, const Tracked &rhs) {
+    lhs.check_alive("compared");
+    rhs.check_alive("compared");
+    return lhs.m_x <=> rhs.m_x;
+  }
 
-  [[nodiscard]] int value() const noexcept { return m_x; }
+  [[nodiscard]] int value() const {
+    check_alive("read");
+    return m_x;
+  }
 
   [[nodiscard]] static std::ptrdiff_t live() noexcept {
     return static_cast<std::ptrdiff_t>(s_default_ctor + s_value_ctor + s_copy_ctor + s_move_ctor) -
@@ -61,6 +131,7 @@ public:
   static void reset() noexcept {
     s_default_ctor = s_value_ctor = s_copy_ctor = s_move_ctor = 0;
     s_copy_assign = s_move_assign = s_destructor = 0;
+    registry().clear();
   }
 
   [[nodiscard]] static Snapshot snapshot() noexcept {
@@ -69,6 +140,31 @@ public:
   }
 
 private:
+  // Addresses of the Tracked objects alive right now. The checks look `this` up here and never read
+  // the bytes of a dead object, so they don't depend on what a destructor left behind.
+  using Registry = std::unordered_set<const Tracked *, std::hash<const Tracked *>, std::equal_to<>,
+                                      detail::MallocAllocator<const Tracked *>>;
+
+  // function-local static, so it exists before the first Tracked is built
+  static Registry &registry() {
+    static Registry s_registry;
+    return s_registry;
+  }
+
+  // Can throw std::bad_alloc. Inside the noexcept move constructor that ends the test program,
+  // which is fine for a test helper.
+  void born() const {
+    if (!registry().insert(this).second) {
+      ADD_FAILURE() << "Tracked constructed at " << this << " over an object that is still alive";
+    }
+  }
+
+  void check_alive(const char *action) const {
+    if (!registry().contains(this)) {
+      ADD_FAILURE() << "Tracked at " << this << " " << action << " after it was destroyed";
+    }
+  }
+
   static inline std::size_t s_default_ctor = 0;
   static inline std::size_t s_value_ctor = 0;
   static inline std::size_t s_copy_ctor = 0;

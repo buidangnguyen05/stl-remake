@@ -1,5 +1,7 @@
 add_library(stl_test_support INTERFACE)
 target_include_directories(stl_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+# tracked.hpp reports lifetime errors with ADD_FAILURE
+target_link_libraries(stl_test_support INTERFACE GTest::gtest)
 
 add_executable(skeleton skeleton.cpp)
 target_link_libraries(skeleton PRIVATE

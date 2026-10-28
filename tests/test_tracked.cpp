@@ -1,7 +1,10 @@
 //
 // Created by buidangnguyen05 on 10/27/26.
 //
+#include <gtest/gtest-spi.h>
 #include <gtest/gtest.h>
+#include <memory>
+#include <new>
 #include <optional>
 #include <support/tracked.hpp>
 #include <support/tracked_fixture.hpp>
@@ -130,6 +133,60 @@ TEST_F(TrackedMemberFixture, MembersOfDerivedFixtureAreNotLeaks) {
   m_items.emplace_back(1);
   m_items.emplace_back(2);
   EXPECT_EQ(Tracked::live(), 2);
+}
+
+TEST_F(TrackedFixture, MovedFromHoldsMovedFromValue) {
+  Tracked a(5);
+  const Tracked b = std::move(a);
+  EXPECT_EQ(a.value(), Tracked::moved_from); // NOLINT(bugprone-use-after-move): on purpose
+  EXPECT_EQ(b.value(), 5);
+
+  Tracked c(6);
+  Tracked d(7);
+  d = std::move(c);
+  EXPECT_EQ(c.value(), Tracked::moved_from); // NOLINT(bugprone-use-after-move): on purpose
+  EXPECT_EQ(d.value(), 6);
+}
+
+namespace {
+// raw storage for one Tracked, the way a vector holds its elements
+struct RawSlot {
+  alignas(Tracked) unsigned char bytes[sizeof(Tracked)];
+
+  Tracked *construct(int value) { return ::new (static_cast<void *>(bytes)) Tracked(value); }
+};
+} // namespace
+
+TEST_F(TrackedFixture, ReconstructInSameStorageIsFine) {
+  RawSlot slot;
+  Tracked *p = slot.construct(1);
+  std::destroy_at(p);
+  p = slot.construct(2);
+  EXPECT_EQ(p->value(), 2);
+  std::destroy_at(p);
+}
+
+TEST_F(TrackedFixture, DoubleDestructionIsReported) {
+  RawSlot slot;
+  Tracked *p = slot.construct(1);
+  std::destroy_at(p);
+  EXPECT_NONFATAL_FAILURE(std::destroy_at(p), "destroyed twice");
+}
+
+TEST_F(TrackedFixture, UseAfterDestructionIsReported) {
+  RawSlot slot;
+  Tracked *p = slot.construct(1);
+  std::destroy_at(p);
+  EXPECT_NONFATAL_FAILURE(static_cast<void>(p->value()), "read after it was destroyed");
+}
+
+TEST_F(TrackedFixture, ConstructOverLiveObjectIsReported) {
+  RawSlot slot;
+  slot.construct(1);
+  Tracked *p = nullptr;
+  EXPECT_NONFATAL_FAILURE(p = slot.construct(2), "still alive");
+  std::destroy_at(p);
+  Tracked::reset(); // two constructions, one destruction: not a leak this test cares about
 }
 
 TEST_F(TrackedFixture, DISABLED_DeliberateLeak) {
