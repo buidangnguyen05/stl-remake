@@ -189,6 +189,61 @@ TEST_F(TrackedFixture, ConstructOverLiveObjectIsReported) {
   Tracked::reset(); // two constructions, one destruction: not a leak this test cares about
 }
 
+TEST_F(TrackedFixture, ThrowAfterThreeCopies) {
+  const Tracked source(1);
+  const Tracked::ThrowAfter guard(3);
+  EXPECT_NO_THROW(Tracked{source});
+  EXPECT_NO_THROW(Tracked{source});
+  EXPECT_NO_THROW(Tracked{source});
+
+  const Snapshot before = Tracked::snapshot();
+  try {
+    const Tracked fourth(source);
+    ADD_FAILURE() << "the 4th copy did not throw";
+  } catch (const stl::test::TrackedError &) {
+    EXPECT_EQ(Tracked::snapshot(), before); // the throw came before any state change
+  }
+  EXPECT_EQ(Tracked::live(), 1);
+}
+
+TEST_F(TrackedFixture, ThrowAfterCountsConstructions) {
+  const Tracked::ThrowAfter guard(2);
+  EXPECT_NO_THROW(Tracked{});
+  EXPECT_NO_THROW(Tracked{1});
+  EXPECT_THROW(Tracked{2}, stl::test::TrackedError);
+  EXPECT_EQ(Tracked::live(), 0);
+}
+
+TEST_F(TrackedFixture, ThrowAfterCountsThrowingMoves) {
+  using stl::test::ThrowingMoveTracked;
+  ThrowingMoveTracked a(1);
+  ThrowingMoveTracked b(2);
+  const Tracked::ThrowAfter guard(1);
+  ThrowingMoveTracked c = std::move(a);
+  EXPECT_THROW(c = std::move(b), stl::test::TrackedError);
+  EXPECT_EQ(b.value(), 2); // the throw came before b was moved from
+}
+
+TEST_F(TrackedFixture, NoexceptMovesNeverThrow) {
+  Tracked a(1);
+  const Tracked::ThrowAfter guard(0); // the very next operation that may throw, throws
+  EXPECT_NO_THROW(Tracked{std::move(a)});
+  EXPECT_THROW(Tracked{a}, stl::test::TrackedError);
+}
+
+TEST_F(TrackedFixture, ThrowAfterDisarmsAtScopeExit) {
+  {
+    const Tracked::ThrowAfter guard(0);
+  }
+  EXPECT_NO_THROW(Tracked{});
+}
+
+TEST_F(TrackedFixture, ResetDisarms) {
+  const Tracked::ThrowAfter guard(0);
+  Tracked::reset();
+  EXPECT_NO_THROW(Tracked{});
+}
+
 TEST_F(TrackedFixture, DISABLED_DeliberateLeak) {
   [[maybe_unused]] auto *leak = new Tracked(42);
   EXPECT_EQ(Tracked::live(), 1);
