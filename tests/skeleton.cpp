@@ -8,7 +8,7 @@ signed main() {
 
   stl::test::Tracked(5);
 
-  std::vector<stl::test::Tracked> v(5, stl::test::Tracked(10));
+  const std::vector v(5, stl::test::Tracked(10));
 
   std::cout << "Live objects: " << stl::test::Tracked::live() << "\n";
 }

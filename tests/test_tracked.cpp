@@ -90,7 +90,7 @@ TEST_F(TrackedFixture, DefaultCopyMoveSequence) {
 
 TEST_F(TrackedFixture, ResetAndSnapshotComparison) {
   {
-    Tracked a(1);
+    const Tracked a(1);
     const Snapshot s1 = Tracked::snapshot();
     const Snapshot s2 = Tracked::snapshot();
     EXPECT_EQ(s1, s2); // nothing in between
@@ -109,8 +109,8 @@ TEST_F(TrackedFixture, ResetAndSnapshotComparison) {
 }
 
 TEST_F(TrackedFixture, Normal) {
-  Tracked a(1);
-  Tracked b(2);
+  const Tracked a(1);
+  const Tracked b(2);
   EXPECT_EQ(Tracked::live(), 2);
   {
     Tracked c = a;
@@ -119,10 +119,12 @@ TEST_F(TrackedFixture, Normal) {
   EXPECT_EQ(Tracked::live(), 2);
 }
 
+namespace {
 class TrackedMemberFixture : public TrackedFixture {
 protected:
   std::vector<Tracked> m_items;
 };
+} // namespace
 
 TEST_F(TrackedMemberFixture, MembersOfDerivedFixtureAreNotLeaks) {
   m_items.emplace_back(1);
@@ -131,6 +133,6 @@ TEST_F(TrackedMemberFixture, MembersOfDerivedFixtureAreNotLeaks) {
 }
 
 TEST_F(TrackedFixture, DISABLED_DeliberateLeak) {
-  [[maybe_unused]] Tracked *leak = new Tracked(42);
+  [[maybe_unused]] auto *leak = new Tracked(42);
   EXPECT_EQ(Tracked::live(), 1);
 }

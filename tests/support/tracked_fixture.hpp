@@ -8,7 +8,7 @@
 
 #include <gtest/gtest.h>
 
-class TrackedFixture : public ::testing::Test {
+class TrackedFixture : public testing::Test {
 protected:
   TrackedFixture() { stl::test::Tracked::reset(); }
 

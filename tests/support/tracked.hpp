@@ -1,5 +1,4 @@
 #pragma once
-
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -31,7 +30,7 @@ public:
   };
 
   Tracked() { ++s_default_ctor; }
-  explicit Tracked(int value) : m_x(value) { ++s_value_ctor; }
+  explicit Tracked(const int &value) : m_x(value) { ++s_value_ctor; }
 
   Tracked(const Tracked &other) : m_x(other.m_x) { ++s_copy_ctor; }
   Tracked(Tracked &&other) noexcept : m_x(other.m_x) { ++s_move_ctor; }

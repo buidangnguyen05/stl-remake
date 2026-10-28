@@ -1,7 +1,41 @@
-Checks: '-*,readability-identifier-naming'
+# Checks from the style guide. Each comment names the rule it enforces.
+Checks:
+  - "-*"
+  # Files and headers
+  - misc-include-cleaner                                    # include what you use
+  - google-build-using-namespace                            # no using namespace
+  - modernize-concat-nested-namespaces                      # namespace stl::test {
+  # Naming
+  - readability-identifier-naming                           # see CheckOptions
+  - google-readability-avoid-underscore-in-googletest-name  # PascalCase test names, no _
+  # Formatting rules clang-format can't do
+  - readability-braces-around-statements                    # always braces (clang-format also inserts them)
+  - readability-isolate-declaration                         # one declaration per line
+  - misc-const-correctness                                  # const locals that never change
+  # Class layout
+  - misc-non-private-member-variables-in-classes            # struct for all-public data, class otherwise
+  # Functions and types
+  - google-explicit-constructor                             # explicit one-argument constructors
+  - performance-noexcept-move-constructor                   # noexcept moves
+  - performance-noexcept-swap                               # noexcept swap
+  - modernize-use-nodiscard                                 # [[nodiscard]] on queries
+  - readability-make-member-function-const                  # const when it doesn't change the object
+  - cppcoreguidelines-pro-type-member-init                  # no uninitialized members
+  - modernize-use-default-member-init                       # default value at the declaration
+  - cppcoreguidelines-prefer-member-initializer             # init list, not assignment in the body
+  - modernize-use-equals-default                            # = default
+  - modernize-avoid-c-style-cast                            # static_cast, never C-style casts
+  - modernize-use-auto                                      # auto when the type is obvious
+
+HeaderFilterRegex: '.*/(include|tests)/.*'
+
 CheckOptions:
   readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.ClassIgnoredRegexp: '^(vector|list|deque)$'
   readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  readability-identifier-naming.TypeAliasIgnoredRegexp: '^([a-z_]+_type|(const_)?(reference|pointer|iterator|reverse_iterator)|hasher|key_compare|key_equal|value_compare)$'
   readability-identifier-naming.FunctionCase: lower_case
   readability-identifier-naming.MethodCase: lower_case
   readability-identifier-naming.VariableCase: lower_case
@@ -18,3 +52,4 @@ CheckOptions:
   readability-identifier-naming.NamespaceCase: lower_case
   readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
   readability-identifier-naming.MacroDefinitionPrefix: STL_
+  misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic: true
