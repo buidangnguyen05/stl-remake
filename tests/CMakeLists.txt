@@ -27,3 +27,12 @@ target_link_libraries(test_tracked PRIVATE
 )
 set_warning_flags(test_tracked)
 gtest_discover_tests(test_tracked)
+
+add_executable(test_vector test_vector.cpp)
+target_link_libraries(test_vector PRIVATE
+        stl::stl
+        stl_test_support
+        GTest::gtest_main
+)
+set_warning_flags(test_vector)
+gtest_discover_tests(test_vector)

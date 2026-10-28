@@ -2,6 +2,6 @@
 
 namespace stl {
 
-inline constexpr const char *version = "0.0.0";
+inline constexpr auto version = "0.2.1";
 
 } // namespace stl
