@@ -1,6 +1,3 @@
-//
-// Created by buidangnguyen05 on 10/27/26.
-//
 #include <gtest/gtest-spi.h>
 #include <gtest/gtest.h>
 #include <memory>
