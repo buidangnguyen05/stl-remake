@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    # same compiler as the local setup (GCC 15)
+    container:
+      image: gcc:15
+      # LeakSanitizer (part of ASan) needs ptrace, which Docker blocks by default
+      options: --cap-add=SYS_PTRACE
+    steps:
+      - uses: actions/checkout@v4
+
+      # CMakeLists.txt needs CMake 4.2+; this also installs Ninja
+      - uses: lukka/get-cmake@latest
+
+      - name: Configure
+        run: cmake --preset debug-asan
+
+      - name: Build
+        run: cmake --build --preset debug-asan
+
+      - name: Test
+        run: ctest --preset debug-asan
