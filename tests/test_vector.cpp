@@ -66,7 +66,6 @@ TEST_F(VectorFixture, SizeConstructorCounts) {
   {
     const stl::vector<Tracked> v(5);
     EXPECT_EQ(v.size(), 5U);
-    // write your prediction before running: which counters change, and by how much?
     EXPECT_EQ(Tracked::snapshot(), (Snapshot{.default_ctor = 5}));
   }
   EXPECT_EQ(Tracked::live(), 0);
@@ -81,7 +80,6 @@ TEST_F(VectorFixture, FillConstructorCounts) {
     for (std::size_t i = 0; i < v.size(); ++i) {
       EXPECT_EQ(v.data()[i].value(), 7) << "index " << i;
     }
-    // write your prediction before running: the counts *added* by the constructor
     Snapshot added = Tracked::snapshot();
     added.value_ctor -= before.value_ctor;
     EXPECT_EQ(added, (Snapshot{.copy_ctor = 5}));
@@ -95,7 +93,6 @@ TEST_F(VectorFixture, InitializerListConstructorCounts) {
     ASSERT_EQ(v.size(), 3U);
     EXPECT_EQ(v.data()[0].value(), 1);
     EXPECT_EQ(v.data()[2].value(), 3);
-    // write your prediction before running: count everything, including the list itself
     EXPECT_EQ(Tracked::snapshot(), (Snapshot{.value_ctor = 3, .copy_ctor = 3, .destructor = 3}));
   }
   EXPECT_EQ(Tracked::live(), 0);
@@ -161,7 +158,6 @@ TEST_F(VectorFixture, CopyConstructorCounts) {
   Snapshot expected = Tracked::snapshot();
   {
     const stl::vector<Tracked> copy(source);
-    // write your prediction before running: the counts *added* by the copy
     expected.copy_ctor += 5;
     EXPECT_EQ(Tracked::snapshot(), expected);
 
@@ -199,7 +195,6 @@ TEST_F(VectorFixture, MoveConstructorMovesNoElements) {
   const Snapshot before = Tracked::snapshot();
 
   const stl::vector<Tracked> b = std::move(a);
-  // write your prediction before running: which counters change?
   EXPECT_EQ(Tracked::snapshot(), before);
   EXPECT_EQ(b.data(), old_data);
   EXPECT_EQ(b.size(), 5U);
@@ -258,4 +253,222 @@ TEST_F(VectorFixture, NonMemberSwapExchangesBuffers) {
   EXPECT_EQ(Tracked::snapshot(), before);
   EXPECT_EQ(a.data(), a_data);
   EXPECT_EQ(b.data(), b_data);
+}
+
+// --- P2.6: copy and move assignment ---
+//
+// Copy assignment exists in two versions: strong_copy_assignment (copy-and-swap) and
+// basic_copy_assignment (reuses the capacity; operator= calls this one). Both are tested here.
+
+namespace {
+
+using Vec = stl::vector<Tracked>;
+using CopyAssign = Vec &(Vec::*)(const Vec &);
+
+enum class Guarantee { strong, basic };
+
+// the three fixed scenarios from P2.6 step 3
+struct Scenario {
+  const char *name;
+  std::size_t a_size;
+  std::size_t a_capacity;
+  std::size_t b_size;
+};
+constexpr Scenario more{
+    .name = "(a) enough capacity, more elements", .a_size = 5, .a_capacity = 5, .b_size = 3};
+constexpr Scenario fewer{
+    .name = "(b) enough capacity, fewer elements", .a_size = 2, .a_capacity = 5, .b_size = 4};
+constexpr Scenario too_small{
+    .name = "(c) too little capacity", .a_size = 2, .a_capacity = 2, .b_size = 4};
+
+// counter changes since `before`
+Snapshot added_since(const Snapshot &before) {
+  Snapshot now = Tracked::snapshot();
+  now.default_ctor -= before.default_ctor;
+  now.value_ctor -= before.value_ctor;
+  now.copy_ctor -= before.copy_ctor;
+  now.move_ctor -= before.move_ctor;
+  now.copy_assign -= before.copy_assign;
+  now.move_assign -= before.move_assign;
+  now.destructor -= before.destructor;
+  return now;
+}
+
+// a vector holding first, first + 1, ... with the given size and capacity
+Vec make_vector(std::size_t size, std::size_t capacity, int first) {
+  Vec v(capacity);
+  for (std::size_t i = 0; i < capacity; ++i) {
+    v.data()[i] = Tracked(first + static_cast<int>(i));
+  }
+  if (size < capacity) {
+    // no reserve() yet: shrink with the reuse version, which keeps the buffer
+    Vec head(size);
+    for (std::size_t i = 0; i < size; ++i) {
+      head.data()[i] = Tracked(first + static_cast<int>(i));
+    }
+    v.basic_copy_assignment(head);
+  }
+  return v;
+}
+
+bool holds(const Vec &v, std::size_t size, int first) {
+  if (v.size() != size) {
+    return false;
+  }
+  for (std::size_t i = 0; i < size; ++i) {
+    if (v.data()[i].value() != first + static_cast<int>(i)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// runs `a = b` for one scenario and returns the counter changes it caused
+Snapshot count_assignment(CopyAssign assign, const Scenario &s) {
+  SCOPED_TRACE(s.name);
+  Vec a = make_vector(s.a_size, s.a_capacity, 100);
+  const Vec b = make_vector(s.b_size, s.b_size, 200);
+  EXPECT_EQ(a.capacity(), s.a_capacity) << "scenario setup is wrong";
+
+  const Snapshot before = Tracked::snapshot();
+  (a.*assign)(b);
+  const Snapshot added = added_since(before);
+
+  EXPECT_TRUE(holds(a, s.b_size, 200)) << "a doesn't hold a copy of b";
+  return added;
+}
+
+// runs the "every k" loop for one scenario, and checks `a` after each throw
+void check_guarantee(CopyAssign assign, const Scenario &s, Guarantee expected) {
+  SCOPED_TRACE(s.name);
+  bool saw_change = false;
+  std::size_t throws = 0;
+  for (std::size_t k = 0;; ++k) {
+    Vec a = make_vector(s.a_size, s.a_capacity, 100);
+    const Vec b = make_vector(s.b_size, s.b_size, 200);
+    const Tracked *const old_data = a.data();
+
+    bool threw = false;
+    {
+      const Tracked::ThrowAfter guard(k);
+      try {
+        (a.*assign)(b);
+      } catch (const TrackedError &) {
+        threw = true;
+      }
+    }
+    if (!threw) {
+      break; // k is past the last operation that can throw
+    }
+    ++throws;
+
+    // valid: every element is alive, and nothing leaked
+    ASSERT_LE(a.size(), a.capacity()) << "k = " << k;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+      (void)a.data()[i].value(); // fails if the element is dead
+    }
+    EXPECT_EQ(Tracked::live(), static_cast<std::ptrdiff_t>(a.size() + b.size())) << "k = " << k;
+
+    const bool unchanged = a.data() == old_data && holds(a, s.a_size, 100);
+    if (expected == Guarantee::strong) {
+      EXPECT_TRUE(unchanged) << "k = " << k << ": a changed, so this isn't the strong guarantee";
+    }
+    saw_change = saw_change || !unchanged;
+  }
+
+  EXPECT_GT(throws, 0U) << "no operation ever threw";
+  if (expected == Guarantee::basic) {
+    EXPECT_TRUE(saw_change) << "a was never changed by a throw: this is stronger than basic";
+  }
+}
+
+} // namespace
+
+// exact counts caused by `a = b` alone
+TEST_F(VectorFixture, StrongCopyAssignmentCounts) {
+  const CopyAssign assign = &Vec::strong_copy_assignment;
+  EXPECT_EQ(count_assignment(assign, more),
+            (Snapshot{.copy_ctor = 3, .destructor = 5})); // (a) a: 5 of 5, b: 3
+  EXPECT_EQ(count_assignment(assign, fewer),
+            (Snapshot{.copy_ctor = 4, .destructor = 2})); // (b) a: 2 of 5, b: 4
+  EXPECT_EQ(count_assignment(assign, too_small),
+            (Snapshot{.copy_ctor = 4, .destructor = 2})); // (c) a: 2 of 2, b: 4
+}
+
+TEST_F(VectorFixture, BasicCopyAssignmentCounts) {
+  const CopyAssign assign = &Vec::basic_copy_assignment;
+  EXPECT_EQ(count_assignment(assign, more),
+            (Snapshot{.copy_assign = 3, .destructor = 2})); // (a) a: 5 of 5, b: 3
+  EXPECT_EQ(count_assignment(assign, fewer),
+            (Snapshot{.copy_ctor = 2, .copy_assign = 2})); // (b) a: 2 of 5, b: 4
+  EXPECT_EQ(count_assignment(assign, too_small),
+            (Snapshot{.copy_ctor = 4, .destructor = 2})); // (c) a: 2 of 2, b: 4
+}
+
+// the guarantee of each version, checked after every possible throw
+TEST_F(VectorFixture, StrongCopyAssignmentGuarantee) {
+  const CopyAssign assign = &Vec::strong_copy_assignment;
+  check_guarantee(assign, more, Guarantee::strong);
+  check_guarantee(assign, fewer, Guarantee::strong);
+  check_guarantee(assign, too_small, Guarantee::strong);
+}
+
+TEST_F(VectorFixture, BasicCopyAssignmentGuarantee) {
+  const CopyAssign assign = &Vec::basic_copy_assignment;
+  check_guarantee(assign, more, Guarantee::basic);
+  check_guarantee(assign, fewer, Guarantee::basic);
+  check_guarantee(assign, too_small, Guarantee::strong);
+}
+
+// `a = a` is safe, and a keeps its elements
+TEST_F(VectorFixture, CopyAssignmentToSelf) {
+  for (const CopyAssign assign : {&Vec::strong_copy_assignment, &Vec::basic_copy_assignment}) {
+    Vec a = make_vector(3, 3, 100);
+    const Snapshot before = Tracked::snapshot();
+    (a.*assign)(a);
+    EXPECT_EQ(added_since(before), Snapshot{});
+    EXPECT_TRUE(holds(a, 3, 100));
+  }
+}
+
+// operator=, self-assignment and move assignment
+
+static_assert(std::is_nothrow_move_assignable_v<stl::vector<Tracked>>);
+
+TEST_F(VectorFixture, CopyAssignmentOperatorToSelf) {
+  Vec a = make_vector(3, 3, 100);
+  const Tracked *const old_data = a.data();
+  a = a;
+  EXPECT_EQ(a.data(), old_data);
+  EXPECT_TRUE(holds(a, 3, 100));
+}
+
+TEST_F(VectorFixture, MoveAssignmentToSelf) {
+  Vec a = make_vector(3, 3, 100);
+  const Tracked *const old_data = a.data();
+  const Snapshot before = Tracked::snapshot();
+  auto &r = a; // written directly, `a = std::move(a)` trips -Werror=self-move
+  a = std::move(r);
+  EXPECT_EQ(added_since(before), Snapshot{});
+  EXPECT_EQ(a.data(), old_data);
+  EXPECT_TRUE(holds(a, 3, 100));
+}
+
+TEST_F(VectorFixture, MoveAssignmentCounts) {
+  Vec a = make_vector(3, 3, 100); // the source
+  Vec b = make_vector(2, 2, 200); // the target, not empty
+  const Tracked *const a_data = a.data();
+  const Snapshot before = Tracked::snapshot();
+
+  b = std::move(a);
+  // no element is built: only b's 2 old elements are destroyed
+  EXPECT_EQ(added_since(before), (Snapshot{.destructor = 2}));
+  EXPECT_EQ(b.data(), a_data);
+  EXPECT_TRUE(holds(b, 3, 100));
+
+  // the source is left empty and reusable
+  EXPECT_EQ(a.size(), 0U);
+  EXPECT_EQ(a.capacity(), 0U);
+  a = b;
+  EXPECT_TRUE(holds(a, 3, 100));
 }

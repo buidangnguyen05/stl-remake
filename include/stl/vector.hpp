@@ -45,13 +45,57 @@ public:
   vector(const vector &other) : detail::VectorBase<T>(other.size()) {
     detail::ConstructTransaction<T> transaction(m_start);
     for (size_type i = 0; i < other.size(); ++i) {
-      transaction.construct_at_end(*(other.m_start + i));
+      transaction.construct_at_end(other.m_start[i]);
     }
     m_finish = transaction.commit();
   }
   vector(vector &&other) noexcept : detail::VectorBase<T>(std::move(other)) {}
 
   ~vector() { detail::destroy_range(m_start, m_finish); }
+
+  // copy assignment with STRONG guarantee
+  vector &strong_copy_assignment(const vector &other) {
+    if (this != &other) {
+      vector copy(other);
+      swap(copy);
+    }
+    return *this;
+  }
+  // copy assignment with BASIC guarantee
+  vector &basic_copy_assignment(const vector &other) {
+    if (this != &other) {
+      if (capacity() < other.size()) {
+        vector copy(other);
+        swap(copy);
+      } else if (size() >= other.size()) {
+        for (size_type i = 0; i < other.size(); ++i) {
+          m_start[i] = other.m_start[i];
+        }
+        detail::destroy_range(m_start + other.size(), m_finish);
+        m_finish = m_start + other.size();
+      } else {
+        for (size_type i = 0; i < size(); ++i) {
+          m_start[i] = other.m_start[i];
+        }
+        detail::ConstructTransaction<T> transaction(m_start + size());
+        for (size_type i = size(); i < other.size(); ++i) {
+          transaction.construct_at_end(other.m_start[i]);
+        }
+        m_finish = transaction.commit();
+      }
+    }
+    return *this;
+  }
+
+  vector &operator=(const vector &other) { return basic_copy_assignment(other); }
+
+  vector &operator=(vector &&other) noexcept {
+    if (this != &other) {
+      detail::destroy_range(m_start, m_finish);
+      detail::VectorBase<T>::operator=(std::move(other));
+    }
+    return *this;
+  }
 
   [[nodiscard]] size_type capacity() const noexcept { return m_end_of_storage - m_start; }
   [[nodiscard]] size_type size() const noexcept { return m_finish - m_start; }
