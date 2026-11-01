@@ -438,7 +438,8 @@ static_assert(std::is_nothrow_move_assignable_v<stl::vector<Tracked>>);
 TEST_F(VectorFixture, CopyAssignmentOperatorToSelf) {
   Vec a = make_vector(3, 3, 100);
   const Tracked *const old_data = a.data();
-  a = a;
+  const auto &r = a; // written directly, `a = a` trips clang's -Wself-assign-overloaded
+  a = r;
   EXPECT_EQ(a.data(), old_data);
   EXPECT_TRUE(holds(a, 3, 100));
 }
@@ -471,4 +472,63 @@ TEST_F(VectorFixture, MoveAssignmentCounts) {
   EXPECT_EQ(a.capacity(), 0U);
   a = b;
   EXPECT_TRUE(holds(a, 3, 100));
+}
+
+// --- P2.7: element access and capacity queries ---
+
+namespace {
+using IntVec = stl::vector<int>;
+// const and non-const accessors return const and non-const results
+static_assert(std::is_same_v<decltype(std::declval<IntVec &>()[0]), int &>);
+static_assert(std::is_same_v<decltype(std::declval<const IntVec &>()[0]), const int &>);
+static_assert(std::is_same_v<decltype(std::declval<IntVec &>().at(0)), int &>);
+static_assert(std::is_same_v<decltype(std::declval<const IntVec &>().at(0)), const int &>);
+static_assert(std::is_same_v<decltype(std::declval<IntVec &>().front()), int &>);
+static_assert(std::is_same_v<decltype(std::declval<const IntVec &>().front()), const int &>);
+static_assert(std::is_same_v<decltype(std::declval<IntVec &>().back()), int &>);
+static_assert(std::is_same_v<decltype(std::declval<const IntVec &>().back()), const int &>);
+static_assert(std::is_same_v<decltype(std::declval<IntVec &>().data()), int *>);
+static_assert(std::is_same_v<decltype(std::declval<const IntVec &>().data()), const int *>);
+} // namespace
+
+TEST_F(VectorFixture, ElementAccessReadsAndWrites) {
+  IntVec v{1, 2, 3};
+  const IntVec &cv = v;
+
+  // called with v and with cv, so it reads through both sets of overloads
+  const auto read_all = [](auto &w) {
+    EXPECT_EQ(w[1], 2);
+    EXPECT_EQ(w.at(1), 2);
+    EXPECT_EQ(w.front(), 1);
+    EXPECT_EQ(w.back(), 3);
+    EXPECT_EQ(*w.data(), 1);
+  };
+  read_all(v);
+  read_all(cv);
+
+  v[1] = 7;
+  v.at(2) = 8;
+  EXPECT_EQ(v[1], 7);
+  EXPECT_EQ(v.at(2), 8);
+  EXPECT_EQ(cv[1], 7);
+  EXPECT_EQ(cv.back(), 8);
+}
+
+TEST_F(VectorFixture, AtThrowsOutOfRange) {
+  IntVec v{1, 2, 3};
+  const IntVec &cv = v;
+  EXPECT_THROW((void)v.at(v.size()), std::out_of_range);
+  EXPECT_THROW((void)cv.at(cv.size()), std::out_of_range);
+  EXPECT_NO_THROW((void)v.at(v.size() - 1));
+}
+
+TEST_F(VectorFixture, CapacityQueries) {
+  const IntVec empty_vec;
+  EXPECT_TRUE(empty_vec.empty());
+  EXPECT_EQ(empty_vec.size(), 0U);
+
+  const IntVec v{1, 2, 3};
+  EXPECT_FALSE(v.empty());
+  EXPECT_EQ(v.size(), 3U);
+  EXPECT_EQ(v.capacity(), 3U);
 }

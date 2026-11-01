@@ -160,8 +160,8 @@ public:
   }
 
   [[nodiscard]] static Snapshot snapshot() noexcept {
-    return {s_default_ctor, s_value_ctor,  s_copy_ctor, s_move_ctor,
-            s_copy_assign,  s_move_assign, s_destructor};
+    return Snapshot(s_default_ctor, s_value_ctor, s_copy_ctor, s_move_ctor, s_copy_assign,
+                    s_move_assign, s_destructor);
   }
 
 protected:

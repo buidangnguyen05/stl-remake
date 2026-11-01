@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <initializer_list>
+#include <stdexcept>
 
 namespace stl {
 template <typename T> class vector : detail::VectorBase<T> {
@@ -97,10 +98,30 @@ public:
     return *this;
   }
 
-  [[nodiscard]] size_type capacity() const noexcept { return m_end_of_storage - m_start; }
-  [[nodiscard]] size_type size() const noexcept { return m_finish - m_start; }
+  [[nodiscard]] reference front() { return *m_start; }
+  [[nodiscard]] const_reference front() const { return *m_start; }
+  [[nodiscard]] reference back() { return *(m_finish - 1); }
+  [[nodiscard]] const_reference back() const { return *(m_finish - 1); }
   [[nodiscard]] const_pointer data() const noexcept { return m_start; }
   [[nodiscard]] pointer data() noexcept { return m_start; }
+  [[nodiscard]] reference operator[](size_type pos) { return m_start[pos]; }
+  [[nodiscard]] const_reference operator[](size_type pos) const { return m_start[pos]; }
+  [[nodiscard]] reference at(size_type pos) {
+    if (pos >= size()) {
+      throw std::out_of_range("vector::at index out of range");
+    }
+    return m_start[pos];
+  }
+  [[nodiscard]] const_reference at(size_type pos) const {
+    if (pos >= size()) {
+      throw std::out_of_range("vector::at index out of range");
+    }
+    return m_start[pos];
+  }
+
+  [[nodiscard]] size_type capacity() const noexcept { return m_end_of_storage - m_start; }
+  [[nodiscard]] size_type size() const noexcept { return m_finish - m_start; }
+  [[nodiscard]] bool empty() const noexcept { return size() == 0; }
 
   void swap(vector &other) noexcept { detail::VectorBase<T>::swap(other); }
 
