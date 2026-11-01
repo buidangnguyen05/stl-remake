@@ -10,6 +10,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 
 using stl::test::Tracked;
 using stl::test::TrackedError;
@@ -149,4 +150,112 @@ TEST_F(VectorFixture, TooLargeSizeThrowsLengthError) {
   // so large that n * sizeof(int) would wrap around without the check
   EXPECT_THROW((void)stl::vector<int>(std::numeric_limits<std::size_t>::max() / 2),
                std::length_error);
+}
+
+// --- P2.5: copy constructor, move constructor, swap ---
+
+static_assert(std::is_nothrow_move_constructible_v<stl::vector<Tracked>>);
+
+TEST_F(VectorFixture, CopyConstructorCounts) {
+  const stl::vector<Tracked> source{Tracked(0), Tracked(1), Tracked(2), Tracked(3), Tracked(4)};
+  Snapshot expected = Tracked::snapshot();
+  {
+    const stl::vector<Tracked> copy(source);
+    // write your prediction before running: the counts *added* by the copy
+    expected.copy_ctor += 5;
+    EXPECT_EQ(Tracked::snapshot(), expected);
+
+    ASSERT_EQ(copy.size(), 5U);
+    EXPECT_NE(copy.data(), source.data());
+    for (std::size_t i = 0; i < copy.size(); ++i) {
+      EXPECT_EQ(copy.data()[i], source.data()[i]) << "index " << i;
+    }
+  }
+  EXPECT_EQ(Tracked::live(), 5);
+}
+
+TEST_F(VectorFixture, CopyConstructorRollsBackAtEveryPoint) {
+  // the source is built before arming, so it doesn't use up the countdown
+  const stl::vector<Tracked> source{Tracked(0), Tracked(1), Tracked(2), Tracked(3), Tracked(4),
+                                    Tracked(5), Tracked(6), Tracked(7), Tracked(8), Tracked(9)};
+  const Tracked *const source_data = source.data();
+  for (std::size_t k = 0; k < source.size(); ++k) {
+    const Tracked::ThrowAfter guard(k);
+    EXPECT_THROW((void)stl::vector<Tracked>(source), TrackedError) << "k = " << k;
+    EXPECT_EQ(Tracked::live(), 10) << "k = " << k;
+
+    // the source is unchanged
+    ASSERT_EQ(source.size(), 10U) << "k = " << k;
+    EXPECT_EQ(source.data(), source_data) << "k = " << k;
+    for (std::size_t i = 0; i < source.size(); ++i) {
+      EXPECT_EQ(source.data()[i].value(), static_cast<int>(i)) << "k = " << k << ", index " << i;
+    }
+  }
+}
+
+TEST_F(VectorFixture, MoveConstructorMovesNoElements) {
+  stl::vector<Tracked> a{Tracked(0), Tracked(1), Tracked(2), Tracked(3), Tracked(4)};
+  const Tracked *const old_data = a.data();
+  const Snapshot before = Tracked::snapshot();
+
+  const stl::vector<Tracked> b = std::move(a);
+  // write your prediction before running: which counters change?
+  EXPECT_EQ(Tracked::snapshot(), before);
+  EXPECT_EQ(b.data(), old_data);
+  EXPECT_EQ(b.size(), 5U);
+
+  // the moved-from vector is empty, with no buffer left
+  EXPECT_EQ(a.size(), 0U);
+  EXPECT_EQ(a.capacity(), 0U);
+  EXPECT_EQ(a.data(), nullptr);
+
+  // ...and it works like any other vector
+  stl::vector<Tracked> other{Tracked(7), Tracked(8)};
+  a.swap(other);
+  ASSERT_EQ(a.size(), 2U);
+  EXPECT_EQ(a.data()[0].value(), 7);
+  EXPECT_EQ(a.data()[1].value(), 8);
+  EXPECT_EQ(other.size(), 0U);
+  // a is destroyed at the end of the test; the fixture checks that nothing leaked
+}
+
+TEST_F(VectorFixture, MemberSwapExchangesBuffers) {
+  stl::vector<Tracked> a{Tracked(1), Tracked(2), Tracked(3)};
+  stl::vector<Tracked> b{Tracked(4)};
+  static_assert(noexcept(a.swap(b)));
+  const Tracked *const a_data = a.data();
+  const Tracked *const b_data = b.data();
+  const Snapshot before = Tracked::snapshot();
+
+  a.swap(b);
+  EXPECT_EQ(Tracked::snapshot(), before);
+  EXPECT_EQ(a.data(), b_data);
+  EXPECT_EQ(b.data(), a_data);
+  EXPECT_EQ(a.size(), 1U);
+  EXPECT_EQ(b.size(), 3U);
+}
+
+TEST_F(VectorFixture, NonMemberSwapExchangesBuffers) {
+  stl::vector<Tracked> a{Tracked(1), Tracked(2), Tracked(3)};
+  stl::vector<Tracked> b{Tracked(4)};
+  const Tracked *const a_data = a.data();
+  const Tracked *const b_data = b.data();
+  const Snapshot before = Tracked::snapshot();
+
+  {
+    // the "two-step": ADL must pick stl::swap over std::swap
+    using std::swap;
+    swap(a, b);
+  }
+  EXPECT_EQ(Tracked::snapshot(), before);
+  EXPECT_EQ(a.data(), b_data);
+  EXPECT_EQ(b.data(), a_data);
+  EXPECT_EQ(a.size(), 1U);
+  EXPECT_EQ(b.size(), 3U);
+
+  // called by its full name, it swaps them back
+  stl::swap(a, b);
+  EXPECT_EQ(Tracked::snapshot(), before);
+  EXPECT_EQ(a.data(), a_data);
+  EXPECT_EQ(b.data(), b_data);
 }
